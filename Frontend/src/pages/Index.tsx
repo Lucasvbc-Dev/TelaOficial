@@ -1,0 +1,18 @@
+import Layout from "@/components/layout/Layout";
+import Hero from "@/components/home/Hero";
+import FeaturedProducts from "@/components/home/FeaturedProducts";
+import AboutPreview from "@/components/home/AboutPreview";
+import Newsletter from "@/components/home/Newsletter";
+
+const Index = () => {
+  return (
+    <Layout>
+      <Hero />
+      <FeaturedProducts />
+      <AboutPreview />
+      <Newsletter />
+    </Layout>
+  );
+};
+
+export default Index;
