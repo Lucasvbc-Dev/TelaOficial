@@ -1,14 +1,25 @@
 package backendtela.controller;
 
-import backendtela.dto.CriarPagamentoDTO;
-import backendtela.dto.PagamentoCartaoDTO;
-import backendtela.service.PagamentoService;
-import com.mercadopago.resources.payment.Payment;
-import jakarta.validation.Valid;
-import lombok.extern.slf4j.Slf4j;
+import java.util.Map;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.mercadopago.resources.payment.Payment;
+
+import backendtela.dto.CriarPagamentoDTO;
+import backendtela.dto.CriarPreferenciaPagamentoDTO;
+import backendtela.dto.PagamentoCartaoDTO;
+import backendtela.dto.PreferenciaPagamentoResponseDTO;
+import backendtela.service.PagamentoService;
+import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Controller de Pagamentos.
@@ -62,6 +73,26 @@ public class PagamentoController {
         } catch (Exception e) {
             log.error("Erro ao processar pagamento com cartão", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
+    }
+
+    /**
+     * Criar preferência do Checkout Pro para redirecionar ao Mercado Pago.
+     */
+    @PostMapping("/checkout-pro")
+    public ResponseEntity<?> criarCheckoutPro(@Valid @RequestBody CriarPreferenciaPagamentoDTO dto) {
+        try {
+            log.info("Criando checkout pro para pedido: {}", dto.getPedidoId());
+            PreferenciaPagamentoResponseDTO response = pagamentoService.criarPreferenciaCheckoutPro(dto);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (IllegalStateException e) {
+            log.error("Erro de configuração de MercadoPago: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED)
+                    .body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Erro ao criar checkout pro", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Erro ao criar checkout do Mercado Pago"));
         }
     }
 

@@ -1,7 +1,9 @@
 package backendtela.service;
 
 import backendtela.dto.CriarPagamentoDTO;
+import backendtela.dto.CriarPreferenciaPagamentoDTO;
 import backendtela.dto.PagamentoCartaoDTO;
+import backendtela.dto.PreferenciaPagamentoResponseDTO;
 import backendtela.entidades.Pagamentos;
 import backendtela.enums.Metodo;
 import backendtela.enums.Status;
@@ -41,6 +43,13 @@ public class PagamentoService {
         Payment payment = mercadoPagoService.criarPagamentoCartao(dto);
         salvarRegistroPagamento(dto.getPedidoId(), dto.getValor(), Metodo.CARTAO_DE_CREDITO, payment);
         return payment;
+    }
+
+    /**
+     * Criar preferência do Checkout Pro para redirecionar o cliente ao Mercado Pago.
+     */
+    public PreferenciaPagamentoResponseDTO criarPreferenciaCheckoutPro(CriarPreferenciaPagamentoDTO dto) {
+        return mercadoPagoService.criarPreferenciaCheckoutPro(dto);
     }
 
     /**

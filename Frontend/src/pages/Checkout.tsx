@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";
+import { pagamentoService } from "@/services/pagamentoService";
 
 type PaymentMethod = "credito" | "debito" | "pix" | null;
 
@@ -63,8 +64,21 @@ const Checkout = () => {
       const response = await api.post("/pedidos", pedidoPayload);
       console.log("✅ Pedido criado:", response.data);
 
-      setOrderPlaced(true);
+      const checkoutResponse = await pagamentoService.criarCheckoutPro({
+        pedidoId: String(response.data.id),
+        email: usuario.email,
+        itens: pedidoPayload.itens,
+        backUrl: window.location.origin,
+      });
+
       clearCart();
+
+      if (checkoutResponse?.initPoint) {
+        window.location.href = checkoutResponse.initPoint;
+        return;
+      }
+
+      setOrderPlaced(true);
     } catch (error: any) {
       const errorMsg = error?.response?.data?.message || 
                        error?.response?.data?.error || 

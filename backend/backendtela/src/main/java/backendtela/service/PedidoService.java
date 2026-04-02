@@ -1,5 +1,17 @@
 package backendtela.service;
 
+import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
 import backendtela.dto.ItemPedidoDTO;
 import backendtela.dto.PedidoAdminResponseDTO;
 import backendtela.dto.PedidoDTO;
@@ -7,15 +19,6 @@ import backendtela.entidades.ItemPedido;
 import backendtela.entidades.Pedidos;
 import backendtela.repository.PedidoRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -47,7 +50,7 @@ public class PedidoService {
             pedido.setItens(itens);
             pedido.setTotal(total);
             pedido.setStatus("PENDENTE");
-            pedido.setCreatedAt(LocalDateTime.now());
+            pedido.setCreatedAt(Timestamp.from(LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant()));
 
             repository.save(pedido);
             log.info("Pedido criado: {} - Total: {}", pedido.getId(), total);
@@ -104,7 +107,7 @@ public class PedidoService {
                         itens,
                         pedido.getTotal(),
                         pedido.getStatus(),
-                        pedido.getCreatedAt()
+                    pedido.getCreatedAt() == null ? null : pedido.getCreatedAt().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
                 );
 
             } catch (Exception e) {

@@ -26,6 +26,24 @@ export interface RespostaPagamento {
   };
 }
 
+export interface CriarCheckoutProPayload {
+  pedidoId: string;
+  email: string;
+  itens: Array<{
+    produtoId: string;
+    nome: string;
+    preco: number;
+    quantidade: number;
+  }>;
+  backUrl?: string;
+}
+
+export interface RespostaCheckoutPro {
+  preferenceId: string;
+  initPoint: string;
+  sandboxInitPoint?: string;
+}
+
 /**
  * Serviço de Pagamentos (MercadoPago)
  */
@@ -52,6 +70,16 @@ export const pagamentoService = {
       return response.data;
     } catch (error: any) {
       const message = error.response?.data?.message || 'Erro ao processar pagamento com cartão';
+      throw new Error(message);
+    }
+  },
+
+  criarCheckoutPro: async (payload: CriarCheckoutProPayload): Promise<RespostaCheckoutPro> => {
+    try {
+      const response = await api.post('/pagamentos/checkout-pro', payload);
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Erro ao criar checkout do Mercado Pago';
       throw new Error(message);
     }
   },

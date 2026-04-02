@@ -2,8 +2,6 @@ package backendtela.entidades;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
-import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 
 public class Pedidos {
@@ -13,7 +11,7 @@ public class Pedidos {
     private List<ItemPedido> itens;
     private BigDecimal total;
     private String status;
-    private LocalDateTime createdAt;
+    private Timestamp createdAt;
 
     public Pedidos() {}
 
@@ -57,11 +55,11 @@ public class Pedidos {
         this.status = status;
     }
 
-    public LocalDateTime getCreatedAt() {
+    public Timestamp getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
+    public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
     }
 }

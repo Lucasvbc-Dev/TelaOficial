@@ -1,7 +1,5 @@
 package backendtela.dto;
 
-import backendtela.enums.Status;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,7 +24,6 @@ public class PedidoAdminResponseDTO {
         this.itens = itens;
         this.total = total;
         this.status = status;
-        this.createdAt = createdAt;
     }
 
     public String getPedidoId() {
