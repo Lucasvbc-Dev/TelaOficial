@@ -22,8 +22,8 @@ const Footer = () => {
 
           {/* Navigation */}
           <div>
-            <h4 className="font-display text-lg tracking-wider mb-6">Navegação</h4>
-            <nav className="space-y-3">
+            <h4 className="font-display text-lg tracking-wider mb-4">Navegação</h4>
+            <nav className="space-y-2">
               {[
                 { to: "/", label: "Início" },
                 { to: "/catalogo", label: "Menu" },

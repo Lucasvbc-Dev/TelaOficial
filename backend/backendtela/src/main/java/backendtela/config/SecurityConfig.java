@@ -1,6 +1,8 @@
 package backendtela.config;
 
-import backendtela.security.JwtAuthenticationFilter;
+import java.util.Arrays;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,13 +19,12 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
-import java.util.List;
+import backendtela.security.JwtAuthenticationFilter;
 
 @Configuration
 public class SecurityConfig {
 
-    @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:8081,http://localhost:3000}")
+    @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:8081,http://localhost:8082,http://localhost:3000}")
     private String allowedOrigins;
 
     @Bean
@@ -34,7 +35,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/usuarios", "/usuarios/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/webhook").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/pagamentos/webhook", "/webhook").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

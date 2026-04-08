@@ -29,6 +29,7 @@ export interface RespostaPagamento {
 export interface CriarCheckoutProPayload {
   pedidoId: string;
   email: string;
+  metodoPagamento: 'credito' | 'debito' | 'pix';
   itens: Array<{
     produtoId: string;
     nome: string;

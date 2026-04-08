@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClientResponseException;
 import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.payment.PaymentCreateRequest;
 import com.mercadopago.client.payment.PaymentPayerRequest;
+import com.mercadopago.exceptions.MPApiException;
 import com.mercadopago.resources.payment.Payment;
 
 import backendtela.dto.CriarPagamentoDTO;
@@ -58,7 +59,14 @@ public class MercadoPagoService {
                 .metadata(metadata)
                 .build();
 
-        return client.create(request);
+        try {
+            return client.create(request);
+        } catch (MPApiException e) {
+            String detalhe = e.getApiResponse() != null
+                    ? "HTTP " + e.getApiResponse().getStatusCode() + " - " + e.getApiResponse().getContent()
+                    : e.getMessage();
+            throw new IllegalStateException("Mercado Pago rejeitou PIX: " + detalhe, e);
+        }
     }
 
     public Payment criarPagamentoCartao(PagamentoCartaoDTO dto) throws Exception {
@@ -94,6 +102,7 @@ public class MercadoPagoService {
         body.put("items", items);
         body.put("external_reference", dto.getPedidoId());
         body.put("payer", Map.of("email", dto.getEmail()));
+        body.put("payment_methods", montarPaymentMethods(dto.getMetodoPagamento()));
 
         if (isPublicHttpsUrl(frontendUrl)) {
             body.put("back_urls", Map.of(
@@ -147,6 +156,34 @@ public class MercadoPagoService {
         mapped.put("unit_price", item.getPreco());
         mapped.put("currency_id", "BRL");
         return mapped;
+    }
+
+    private Map<String, Object> montarPaymentMethods(String metodoPagamento) {
+        String metodo = metodoPagamento == null ? "" : metodoPagamento.trim().toLowerCase();
+        List<Map<String, String>> excludedPaymentTypes;
+
+        switch (metodo) {
+            case "pix" -> {
+                return Map.of();
+            }
+            case "credito" -> excludedPaymentTypes = List.of(
+                    Map.of("id", "debit_card"),
+                    Map.of("id", "bank_transfer"),
+                    Map.of("id", "ticket")
+            );
+            case "debito" -> excludedPaymentTypes = List.of(
+                    Map.of("id", "credit_card"),
+                    Map.of("id", "bank_transfer"),
+                    Map.of("id", "ticket")
+            );
+            default -> {
+                return Map.of();
+            }
+        }
+
+        return Map.of(
+                "excluded_payment_types", excludedPaymentTypes
+        );
     }
 
     private String construirBackUrl() {

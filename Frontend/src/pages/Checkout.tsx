@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Layout from "@/components/layout/Layout";
 import { useCart } from "@/contexts/CartContext";
 import { CreditCard, QrCode, CheckCircle } from "lucide-react";
@@ -41,6 +41,15 @@ const Checkout = () => {
       return;
     }
 
+    if (paymentMethod === "pix" && totalPrice < 1) {
+      toast({
+        title: "Valor mínimo para PIX",
+        description: "Para pagamento via PIX, o valor do pedido deve ser de pelo menos R$ 1,00.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsSubmitting(true);
 
@@ -67,6 +76,7 @@ const Checkout = () => {
       const checkoutResponse = await pagamentoService.criarCheckoutPro({
         pedidoId: String(response.data.id),
         email: usuario.email,
+        metodoPagamento: paymentMethod,
         itens: pedidoPayload.itens,
         backUrl: window.location.origin,
       });
@@ -196,7 +206,7 @@ const Checkout = () => {
                 {[
                   { id: "credito" as const, label: "Cartão de Crédito", icon: CreditCard, desc: "Até 12x sem juros" },
                   { id: "debito" as const, label: "Cartão de Débito", icon: CreditCard, desc: "Pagamento à vista" },
-                  { id: "pix" as const, label: "PIX", icon: QrCode, desc: "5% de desconto" },
+                  { id: "pix" as const, label: "PIX", icon: QrCode, desc: "Pagamento via Mercado Pago" },
                 ].map((method) => (
                   <motion.button
                     key={method.id}
@@ -218,49 +228,18 @@ const Checkout = () => {
                 ))}
               </div>
 
-              {/* Card form (visual only) */}
-              <AnimatePresence>
-                {(paymentMethod === "credito" || paymentMethod === "debito") && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-6 space-y-4 overflow-hidden"
-                  >
-                    <input
-                      placeholder="Número do cartão"
-                      className="w-full p-3 border border-border bg-background font-body text-sm focus:outline-none focus:border-foreground transition-colors"
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                      <input
-                        placeholder="Validade (MM/AA)"
-                        className="w-full p-3 border border-border bg-background font-body text-sm focus:outline-none focus:border-foreground transition-colors"
-                      />
-                      <input
-                        placeholder="CVV"
-                        className="w-full p-3 border border-border bg-background font-body text-sm focus:outline-none focus:border-foreground transition-colors"
-                      />
-                    </div>
-                    <input
-                      placeholder="Nome no cartão"
-                      className="w-full p-3 border border-border bg-background font-body text-sm focus:outline-none focus:border-foreground transition-colors"
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {paymentMethod === "pix" && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="mt-6 p-6 border border-border text-center"
-                >
-                  <QrCode size={120} className="mx-auto mb-4 text-foreground" />
-                  <p className="font-body text-sm text-muted-foreground">
-                    O QR Code será gerado após confirmar o pedido
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6 p-6 border border-border bg-secondary/30"
+              >
+                <div className="flex items-start gap-3">
+                  <QrCode size={20} className="mt-0.5 text-foreground shrink-0" />
+                  <p className="font-body text-sm text-muted-foreground leading-relaxed">
+                    O próximo passo abrirá a tela do Mercado Pago já filtrada para o método escolhido. Os dados do cartão devem ser informados na própria tela do Mercado Pago, não neste checkout.
                   </p>
-                </motion.div>
-              )}
+                </div>
+              </motion.div>
 
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -269,7 +248,13 @@ const Checkout = () => {
                 disabled={isSubmitting}
                 className="w-full mt-8 py-4 bg-foreground text-background font-body text-sm tracking-wider uppercase hover:bg-foreground/90 transition-colors"
               >
-                {isSubmitting ? "Processando..." : "Confirmar Pedido"}
+                {isSubmitting
+                  ? "Processando..."
+                  : paymentMethod === "pix"
+                    ? "Ir para PIX no Mercado Pago"
+                    : paymentMethod
+                      ? "Ir para cartão no Mercado Pago"
+                      : "Confirmar Pedido"}
               </motion.button>
             </motion.div>
           </div>

@@ -6,15 +6,22 @@ import backendtela.repository.PagamentoRepository;
 import backendtela.repository.PedidoRepository;
 import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.resources.payment.Payment;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class WebhookService {
+
+    private static final Pattern DATA_ID_PATTERN = Pattern.compile("\"data\"\\s*:\\s*\\{[^}]*?\"id\"\\s*:\\s*\"?([^\",}\\s]+)\"?");
+    private static final Pattern GENERIC_ID_PATTERN = Pattern.compile("\"id\"\\s*:\\s*\"?([^\",}\\s]+)\"?");
 
     private final PagamentoRepository pagamentoRepository;
     private final PedidoRepository pedidoRepository;
@@ -31,7 +38,17 @@ public class WebhookService {
 
     public void processarWebhook(Map<String, Object> payload) {
         String paymentId = extrairPaymentId(payload);
+        processarPagamento(paymentId, null);
+    }
+
+    public void processarWebhook(String payload, String signature) {
+        String paymentId = extrairPaymentId(payload);
+        processarPagamento(paymentId, signature);
+    }
+
+    private void processarPagamento(String paymentId, String signature) {
         if (paymentId == null || paymentId.isBlank()) {
+            log.debug("Webhook recebido sem paymentId. Signature={}", signature);
             return;
         }
 
@@ -82,6 +99,24 @@ public class WebhookService {
 
         Object id = payload.get("id");
         return id == null ? null : String.valueOf(id);
+    }
+
+    private String extrairPaymentId(String payload) {
+        if (payload == null || payload.isBlank()) {
+            return null;
+        }
+
+        Matcher dataMatcher = DATA_ID_PATTERN.matcher(payload);
+        if (dataMatcher.find()) {
+            return dataMatcher.group(1);
+        }
+
+        Matcher genericMatcher = GENERIC_ID_PATTERN.matcher(payload);
+        if (genericMatcher.find()) {
+            return genericMatcher.group(1);
+        }
+
+        return null;
     }
 
     private String extrairPedidoId(Payment payment) {

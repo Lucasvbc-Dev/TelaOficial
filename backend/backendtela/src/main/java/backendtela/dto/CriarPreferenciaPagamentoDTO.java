@@ -26,5 +26,8 @@ public class CriarPreferenciaPagamentoDTO {
     @Valid
     private List<ItemPedidoDTO> itens;
 
+    @NotBlank(message = "Método de pagamento é obrigatório")
+    private String metodoPagamento;
+
     private String backUrl;
 }

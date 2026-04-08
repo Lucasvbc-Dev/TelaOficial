@@ -40,7 +40,7 @@ const allProducts = [
   {
     id: 3,
     name: "Blusa Verão 2",
-    price: "R$ 269,00",
+    price: "R$ 1,00",
     category: "verao",
     image: verao1,
     description: "Blusa Fresca",

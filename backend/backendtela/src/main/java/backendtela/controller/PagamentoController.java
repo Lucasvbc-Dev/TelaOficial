@@ -42,17 +42,22 @@ public class PagamentoController {
      * Retorna QR Code para o cliente ler e escanear.
      */
     @PostMapping("/pix")
-    public ResponseEntity<Payment> pagarPix(@Valid @RequestBody CriarPagamentoDTO dto) {
+    public ResponseEntity<?> pagarPix(@Valid @RequestBody CriarPagamentoDTO dto) {
         try {
             log.info("Processando pagamento PIX para pedido: {} - Valor: {}", dto.getPedidoId(), dto.getValor());
             Payment payment = pagamentoService.pagarPix(dto);
             return ResponseEntity.status(HttpStatus.CREATED).body(payment);
         } catch (IllegalStateException e) {
             log.error("Erro de configuração de MercadoPago: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(null);
+            if (e.getMessage() != null && e.getMessage().contains("HTTP 401")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("message", "Credenciais Mercado Pago inválidas para PIX (live). Use token/public key válidos do mesmo app/conta."));
+            }
+            return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
             log.error("Erro ao processar pagamento PIX", e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", e.getMessage() == null ? "Erro ao processar pagamento PIX" : e.getMessage()));
         }
     }
 
@@ -101,7 +106,7 @@ public class PagamentoController {
      * Chamado automaticamente quando há atualizações no pagamento.
      */
     @PostMapping("/webhook")
-    public ResponseEntity<Void> webhook(@RequestBody String payload, @RequestHeader("x-signature") String signature) {
+    public ResponseEntity<Void> webhook(@RequestBody String payload, @RequestHeader(value = "x-signature", required = false) String signature) {
         try {
             log.info("Webhook recebido do MercadoPago");
             pagamentoService.processarWebhook(payload, signature);

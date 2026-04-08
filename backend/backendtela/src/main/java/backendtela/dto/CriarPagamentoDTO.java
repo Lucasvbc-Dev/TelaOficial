@@ -16,7 +16,7 @@ public class CriarPagamentoDTO {
     private String pedidoId;
 
     @NotNull(message = "Valor é obrigatório")
-    @DecimalMin(value = "0.01", message = "Valor mínimo é R$ 0.01")
+    @DecimalMin(value = "1.00", message = "Valor mínimo para PIX é R$ 1.00")
     private BigDecimal valor;
 
     @NotNull(message = "Método de pagamento é obrigatório")

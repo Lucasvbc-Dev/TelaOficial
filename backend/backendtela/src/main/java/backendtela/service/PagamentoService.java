@@ -21,10 +21,16 @@ public class PagamentoService {
 
     private final MercadoPagoService mercadoPagoService;
     private final PagamentoRepository pagamentoRepository;
+    private final WebhookService webhookService;
 
-    public PagamentoService(MercadoPagoService mercadoPagoService, PagamentoRepository pagamentoRepository) {
+    public PagamentoService(
+            MercadoPagoService mercadoPagoService,
+            PagamentoRepository pagamentoRepository,
+            WebhookService webhookService
+    ) {
         this.mercadoPagoService = mercadoPagoService;
         this.pagamentoRepository = pagamentoRepository;
+        this.webhookService = webhookService;
     }
 
     /**
@@ -54,19 +60,11 @@ public class PagamentoService {
 
     /**
      * Processar webhook do MercadoPago.
-     * Valida a assinatura e atualiza o status do pagamento.
+     * Delegado para o serviço de webhook que consulta o pagamento no Mercado Pago
+     * e atualiza pagamento/pedido.
      */
     public void processarWebhook(String payload, String signature) throws Exception {
-        log.info("Processando webhook do MercadoPago");
-        
-        // TODO: Validar assinatura do webhook
-        // A validação deve incluir:
-        // 1. Recuperar o public_key do MercadoPago
-        // 2. Validar HMAC SHA256
-        // 3. Verificar se o timestamp está dentro de 10 minutos
-        
-        // Por enquanto, apenas logamos
-        log.debug("Payload recebido: {}", payload);
+        webhookService.processarWebhook(payload, signature);
     }
 
     /**
