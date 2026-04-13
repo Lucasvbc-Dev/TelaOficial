@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Layout from "@/components/layout/Layout";
 import AnimatedSection from "@/components/ui/AnimatedSection";
 import { Button } from "@/components/ui/button";
-import api from "@/services/api";
+import { supabaseStoreService } from "@/services/supabaseStoreService";
 
 type ItemPedido = {
   quantidade: number;
@@ -46,8 +46,8 @@ const MeusPedidos = () => {
           setIsLoading(true);
         }
 
-        const response = await api.get<Pedido[]>(`/pedidos/usuario/${usuario.id}`);
-        setPedidos(Array.isArray(response.data) ? response.data : []);
+        const response = await supabaseStoreService.listarPedidosUsuario(usuario.id);
+        setPedidos(Array.isArray(response) ? response : []);
         setErrorMessage(null);
         setLastUpdated(new Date());
       } catch {

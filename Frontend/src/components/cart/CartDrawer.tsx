@@ -6,10 +6,9 @@ import { Link } from "react-router-dom";
 const CartDrawer = () => {
   const { items, isCartOpen, setIsCartOpen, removeItem, updateQuantity, totalItems } = useCart();
 
-  const totalPrice = items.reduce((sum, item) => {
-    const price = parseFloat(item.price.replace("R$ ", "").replace(".", "").replace(",", "."));
-    return sum + price * item.quantity;
-  }, 0);
+  const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const formatPrice = (value: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 
   return (
     <AnimatePresence>
@@ -61,7 +60,7 @@ const CartDrawer = () => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-display text-base tracking-wide text-foreground truncate">{item.name}</h3>
-                        <p className="font-body text-sm text-foreground mt-1">{item.price}</p>
+                        <p className="font-body text-sm text-foreground mt-1">{formatPrice(item.price)}</p>
                         <div className="flex items-center gap-3 mt-2">
                           <button
                             onClick={() => updateQuantity(item.id, item.quantity - 1)}
@@ -96,7 +95,7 @@ const CartDrawer = () => {
                 <div className="flex justify-between items-center">
                   <span className="font-body text-sm tracking-wider uppercase text-muted-foreground">Total</span>
                   <span className="font-display text-2xl text-foreground">
-                    R$ {totalPrice.toFixed(2).replace(".", ",")}
+                    {formatPrice(totalPrice)}
                   </span>
                 </div>
                 <Link

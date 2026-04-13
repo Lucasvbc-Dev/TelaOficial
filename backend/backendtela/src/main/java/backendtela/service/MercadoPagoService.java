@@ -164,7 +164,15 @@ public class MercadoPagoService {
 
         switch (metodo) {
             case "pix" -> {
-                return Map.of();
+            excludedPaymentTypes = List.of(
+                Map.of("id", "credit_card"),
+                Map.of("id", "debit_card"),
+                Map.of("id", "ticket"),
+                Map.of("id", "atm")
+            );
+            return Map.of(
+                "excluded_payment_types", excludedPaymentTypes
+            );
             }
             case "credito" -> excludedPaymentTypes = List.of(
                     Map.of("id", "debit_card"),

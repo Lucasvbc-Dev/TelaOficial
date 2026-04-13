@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ShieldCheck, RefreshCw, Package } from "lucide-react";
-import api from "@/services/api";
+import { supabaseStoreService } from "@/services/supabaseStoreService";
 
 /* =========================
    🔹 NOVO: types alinhados com o backend
@@ -58,8 +58,7 @@ const Admin = () => {
   const fetchPedidos = async () => {
     setLoading(true);
     try {
-      const response = await api.get("/pedidos/admin");
-      const data = response.data;
+      const data = await supabaseStoreService.listarPedidosAdmin();
       setPedidos(data);
     } catch (error) {
       console.error("Erro ao buscar pedidos:", error);
@@ -70,9 +69,7 @@ const Admin = () => {
 
   const atualizarStatus = async (pedidoId: string, status: string) => {
     try {
-      await api.patch(`/pedidos/admin/${pedidoId}/status`, null, {
-        params: { status },
-      });
+      await supabaseStoreService.atualizarStatusPedido(pedidoId, status);
       fetchPedidos(); // 🔹 recarrega lista
     } catch (error) {
       console.error("Erro ao atualizar status", error);

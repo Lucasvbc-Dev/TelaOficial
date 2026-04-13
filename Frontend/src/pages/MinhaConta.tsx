@@ -8,11 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Pencil, Check, X, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import api from "@/services/api";
 
 
 const MinhaConta = () => {
-  const { usuario, login, logout } = useAuth();
+  const { usuario, updateProfile, logout } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
@@ -35,10 +34,7 @@ const MinhaConta = () => {
 
   const handleSave = async () => {
   try {
-    const response = await api.put(`/usuarios/${usuario.id}`, form);
-    const usuarioAtualizado = response.data;
-
-    login(usuarioAtualizado);
+    await updateProfile(form);
     setIsEditing(false);
 
     toast({ title: "Dados atualizados com sucesso!" });
@@ -63,7 +59,7 @@ const MinhaConta = () => {
   };
 
   const handleLogout = () => {
-    logout();
+    void logout();
     navigate("/auth");
   };
 

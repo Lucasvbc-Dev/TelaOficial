@@ -4,7 +4,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import api from "@/services/api";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -19,7 +18,7 @@ const Auth = () => {
   });
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { login} = useAuth();
+  const { signIn, signUp } = useAuth();
 
 
 
@@ -37,45 +36,35 @@ const Auth = () => {
 
   try {
     if (isLogin) {
-      // LOGIN
-      const response = await api.post("/usuarios/login", {
-          email: formData.email,
-          senha: formData.password,
-      });
-      const { token, ...usuario } = response.data;
-
-      // Salvar token no localStorage
-      localStorage.setItem("@tela:token", token);
-      
-      login(usuario);
+      await signIn(formData.email, formData.password);
 
       toast({
         title: "Login realizado!",
-        description: `Bem-vindo(a) à TELA, ${usuario.nome}!`,
+        description: "Bem-vindo(a) à TELA!",
       });
 
       navigate("/");
     } else {
-      // CADASTRO
-      await api.post("/usuarios", {
-          nome: formData.name,
-          email: formData.email,
-          telefone : formData.telefone,
-          endereco : formData.endereco,
-          senha: formData.password,
+      await signUp({
+        nome: formData.name,
+        email: formData.email,
+        telefone: formData.telefone,
+        endereco: formData.endereco,
+        senha: formData.password,
       });
 
       toast({
         title: "Conta criada!",
-        description: "Agora você pode fazer login.",
+        description: "Cadastro realizado. Agora você pode fazer login.",
       });
 
       setIsLogin(true);
     }
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro ao conectar com o servidor.";
     toast({
       title: "Erro",
-      description: isLogin ? "E-mail ou senha inválidos." : "Erro ao conectar com o servidor.",
+      description: message,
       variant: "destructive",
     });
   }

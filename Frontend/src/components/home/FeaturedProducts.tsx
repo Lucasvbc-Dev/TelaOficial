@@ -1,40 +1,72 @@
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import AnimatedSection from "../ui/AnimatedSection";
+import { supabaseStoreService, type Produto } from "@/services/supabaseStoreService";
 
-import verao3 from "@/assets/verao3.jpeg";
-import verao4 from "@/assets/verao4.jpeg";
-import verao5 from "@/assets/verao5.jpeg";
+const formatPrice = (value: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 
-const products = [
-  {
-    id: 1,
-    name: "Blusa Verão 3",
-    price: "R$ 289,00",
-    image: verao3,
-  },
-  {
-    id: 2,
-    name: "Blusa Verão 4",
-    price: "R$ 299,00",
-    image: verao4,
-  },
-  {
-    id: 3,
-    name: "Blusa Verão 5",
-    price: "R$ 259,00",
-    image: verao5,
-  },
-];
+const normalizeCategory = (value?: string | null) =>
+  (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const normalizeName = (value?: string | null) =>
+  (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const TARGET_NEW_IN_NAMES = ["new in 1", "new in 4", "new in 6"];
 
 const FeaturedProducts = () => {
+  const [products, setProducts] = useState<Produto[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await supabaseStoreService.listarProdutos({ page: 0, size: 200 });
+        const allNewInProducts = response.content
+          .filter((produto) => {
+            const categoria = normalizeCategory(produto.categoria);
+            return categoria === "new in" || categoria === "newin" || categoria.includes("new in");
+          });
+
+        const selectedInOrder = TARGET_NEW_IN_NAMES
+          .map((targetName) =>
+            allNewInProducts.find((produto) => normalizeName(produto.nome) === targetName),
+          )
+          .filter((produto): produto is Produto => Boolean(produto));
+
+        if (selectedInOrder.length < 3) {
+          const usedIds = new Set(selectedInOrder.map((produto) => produto.id));
+          const complemento = allNewInProducts
+            .filter((produto) => !usedIds.has(produto.id))
+            .slice(0, 3 - selectedInOrder.length);
+          setProducts([...selectedInOrder, ...complemento]);
+          return;
+        }
+
+        setProducts(selectedInOrder.slice(0, 3));
+      } catch (error) {
+        console.error("Erro ao carregar destaques:", error);
+      }
+    };
+
+    void load();
+  }, []);
+
   return (
     <section className="py-24 lg:py-32 bg-background">
       <div className="container mx-auto px-6 lg:px-12">
         <AnimatedSection className="text-center mb-16">
           <h2 className="section-heading text-foreground mb-4">Destaques</h2>
           <p className="font-body text-muted-foreground max-w-lg mx-auto">
-            Peças da nova Coleção de Verão
+            Novidades da coleção New In
           </p>
         </AnimatedSection>
 
@@ -44,8 +76,8 @@ const FeaturedProducts = () => {
               <Link to="/catalogo" className="group block">
                 <div className="image-reveal aspect-[3/4] bg-secondary mb-6 overflow-hidden">
                   <motion.img
-                    src={product.image}
-                    alt={product.name}
+                    src={product.imagemUrl}
+                    alt={product.nome}
                     className="w-full h-full object-cover"
                     whileHover={{ scale: 1.05 }}
                     transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -53,10 +85,10 @@ const FeaturedProducts = () => {
                 </div>
                 <div className="text-center">
                   <h3 className="font-display text-xl tracking-wide text-foreground mb-2">
-                    {product.name}
+                    {product.nome}
                   </h3>
                   <p className="font-body text-sm text-muted-foreground">
-                    {product.price}
+                    {formatPrice(product.preco)}
                   </p>
                 </div>
               </Link>

@@ -6,7 +6,7 @@ import { CreditCard, QrCode, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import api from "@/services/api";
+import { supabaseStoreService } from "@/services/supabaseStoreService";
 import { pagamentoService } from "@/services/pagamentoService";
 
 type PaymentMethod = "credito" | "debito" | "pix" | null;
@@ -19,11 +19,12 @@ const Checkout = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pixQrBase64, setPixQrBase64] = useState<string | null>(null);
+  const [pixCode, setPixCode] = useState<string | null>(null);
 
-  const totalPrice = items.reduce((sum, item) => {
-    const price = parseFloat(item.price.replace("R$ ", "").replace(".", "").replace(",", "."));
-    return sum + price * item.quantity;
-  }, 0);
+  const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const formatPrice = (value: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 
   const handlePlaceOrder = async () => {
     if (!paymentMethod) {
@@ -53,31 +54,71 @@ const Checkout = () => {
     try {
       setIsSubmitting(true);
 
-      const pedidoPayload = {
+      const itensPayload = items.map((item) => ({
+        produtoId: item.id,
+        nome: item.name,
+        preco: item.price,
+        quantidade: item.quantity,
+      }));
+
+      const pedido = await supabaseStoreService.criarPedido({
         usuarioId: usuario.id,
-        itens: items.map((item) => ({
-          produtoId: String(item.id),
-          nome: item.name,
-          preco: Number(
-            item.price
-              .replace("R$ ", "")
-              .replace(".", "")
-              .replace(",", ".")
-          ),
-          quantidade: item.quantity,
-        })),
-      };
+        metodoPagamento: paymentMethod,
+        itens: itensPayload,
+      });
 
-      console.log("📤 Enviando pedido:", JSON.stringify(pedidoPayload, null, 2));
+      if (paymentMethod === "pix") {
+        try {
+          const pixResponse = await pagamentoService.pagarComPix({
+            pedidoId: pedido.id,
+            valor: Number(totalPrice.toFixed(2)),
+            metodo: "PIX",
+            email: usuario.email,
+          });
 
-      const response = await api.post("/pedidos", pedidoPayload);
-      console.log("✅ Pedido criado:", response.data);
+          const txData = pixResponse.point_of_interaction?.transaction_data;
+          if (!txData?.qr_code && !txData?.qr_code_base64) {
+            throw new Error("PIX criado sem QR Code. Tente novamente em instantes.");
+          }
+
+          setPixQrBase64(txData.qr_code_base64 || null);
+          setPixCode(txData.qr_code || null);
+          clearCart();
+          return;
+        } catch (pixError: any) {
+          toast({
+            title: "PIX direto indisponível",
+            description: "Redirecionando para o Checkout Pro com PIX.",
+          });
+
+          try {
+            const checkoutResponse = await pagamentoService.criarCheckoutPro({
+              pedidoId: pedido.id,
+              email: usuario.email,
+              metodoPagamento: "pix",
+              itens: itensPayload,
+              backUrl: window.location.origin,
+            });
+
+            clearCart();
+
+            if (checkoutResponse?.initPoint) {
+              window.location.href = checkoutResponse.initPoint;
+              return;
+            }
+
+            throw new Error("Falha ao iniciar Checkout Pro para PIX.");
+          } catch {
+            throw pixError;
+          }
+        }
+      }
 
       const checkoutResponse = await pagamentoService.criarCheckoutPro({
-        pedidoId: String(response.data.id),
+        pedidoId: pedido.id,
         email: usuario.email,
         metodoPagamento: paymentMethod,
-        itens: pedidoPayload.itens,
+        itens: itensPayload,
         backUrl: window.location.origin,
       });
 
@@ -90,17 +131,9 @@ const Checkout = () => {
 
       setOrderPlaced(true);
     } catch (error: any) {
-      const errorMsg = error?.response?.data?.message || 
-                       error?.response?.data?.error || 
-                       error?.message || 
-                       "Erro desconhecido";
-      
-      console.error("❌ Erro ao criar pedido:", {
-        status: error?.response?.status,
-        data: error?.response?.data,
-        message: errorMsg,
-        fullError: error
-      });
+      const errorMsg = error?.message || "Erro desconhecido";
+
+      console.error("Erro ao criar pedido:", error);
 
       toast({
         title: "Erro ao finalizar pedido",
@@ -109,6 +142,23 @@ const Checkout = () => {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCopiarPix = async () => {
+    if (!pixCode) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(pixCode);
+      toast({ title: "Codigo PIX copiado" });
+    } catch {
+      toast({
+        title: "Nao foi possivel copiar",
+        description: "Copie manualmente o codigo PIX exibido.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -132,6 +182,52 @@ const Checkout = () => {
             >
               Voltar ao Início
             </a>
+          </motion.div>
+        </section>
+      </Layout>
+    );
+  }
+
+  if (pixQrBase64 || pixCode) {
+    return (
+      <Layout>
+        <section className="pt-32 pb-16 lg:pt-40 lg:pb-24 min-h-[80vh] flex items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-xl w-full mx-auto px-6 text-center"
+          >
+            <h1 className="font-display text-4xl tracking-wide text-foreground mb-4">Pagamento PIX</h1>
+            <p className="font-body text-muted-foreground mb-8">
+              Escaneie o QR Code no app do banco para concluir o pagamento.
+            </p>
+
+            {pixQrBase64 && (
+              <div className="bg-white p-4 rounded-md inline-block mb-6">
+                <img
+                  src={`data:image/png;base64,${pixQrBase64}`}
+                  alt="QR Code PIX"
+                  className="w-64 h-64"
+                />
+              </div>
+            )}
+
+            {pixCode && (
+              <div className="space-y-3">
+                <p className="font-body text-sm text-muted-foreground">Ou copie o codigo PIX:</p>
+                <textarea
+                  value={pixCode}
+                  readOnly
+                  className="w-full h-32 p-3 border border-border bg-secondary/30 text-xs"
+                />
+                <button
+                  onClick={handleCopiarPix}
+                  className="px-6 py-3 bg-foreground text-background font-body text-xs tracking-wider uppercase"
+                >
+                  Copiar codigo PIX
+                </button>
+              </div>
+            )}
           </motion.div>
         </section>
       </Layout>
@@ -185,15 +281,13 @@ const Checkout = () => {
                       <h3 className="font-display text-base text-foreground">{item.name}</h3>
                       <p className="font-body text-sm text-muted-foreground">Qtd: {item.quantity}</p>
                     </div>
-                    <p className="font-body text-sm text-foreground self-center">{item.price}</p>
+                    <p className="font-body text-sm text-foreground self-center">{formatPrice(item.price)}</p>
                   </div>
                 ))}
               </div>
               <div className="mt-6 pt-4 border-t border-border flex justify-between items-center">
                 <span className="font-body text-sm tracking-wider uppercase text-muted-foreground">Total</span>
-                <span className="font-display text-3xl text-foreground">
-                  R$ {totalPrice.toFixed(2).replace(".", ",")}
-                </span>
+                <span className="font-display text-3xl text-foreground">{formatPrice(totalPrice)}</span>
               </div>
             </motion.div>
 
@@ -236,7 +330,7 @@ const Checkout = () => {
                 <div className="flex items-start gap-3">
                   <QrCode size={20} className="mt-0.5 text-foreground shrink-0" />
                   <p className="font-body text-sm text-muted-foreground leading-relaxed">
-                    O próximo passo abrirá a tela do Mercado Pago já filtrada para o método escolhido. Os dados do cartão devem ser informados na própria tela do Mercado Pago, não neste checkout.
+                    Ao confirmar, você será redirecionado para o Mercado Pago para concluir o pagamento.
                   </p>
                 </div>
               </motion.div>

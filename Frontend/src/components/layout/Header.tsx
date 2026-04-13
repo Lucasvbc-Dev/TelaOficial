@@ -14,7 +14,7 @@ const Header = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    logout();
+    void logout();
     navigate("/auth");
   }
 

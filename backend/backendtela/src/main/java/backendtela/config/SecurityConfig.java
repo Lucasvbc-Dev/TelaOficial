@@ -24,7 +24,7 @@ import backendtela.security.JwtAuthenticationFilter;
 @Configuration
 public class SecurityConfig {
 
-    @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:8081,http://localhost:8082,http://localhost:3000}")
+    @Value("${app.cors.allowed-origins:http://localhost:*,http://127.0.0.1:*}")
     private String allowedOrigins;
 
     @Bean
@@ -35,7 +35,13 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/usuarios", "/usuarios/login").permitAll()
-                    .requestMatchers(HttpMethod.POST, "/pagamentos/webhook", "/webhook").permitAll()
+                    .requestMatchers(HttpMethod.POST,
+                        "/pagamentos/checkout-pro",
+                        "/pagamentos/pix",
+                        "/pagamentos/cartao",
+                        "/pagamentos/webhook",
+                        "/webhook")
+                    .permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
@@ -51,7 +57,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+        configuration.setAllowedOriginPatterns(Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
                 .toList());

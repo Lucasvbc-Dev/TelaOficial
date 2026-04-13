@@ -53,7 +53,11 @@ public class PagamentoController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(Map.of("message", "Credenciais Mercado Pago inválidas para PIX (live). Use token/public key válidos do mesmo app/conta."));
             }
-            return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(Map.of("message", e.getMessage()));
+            if (e.getMessage() != null && e.getMessage().contains("Collector user without key enabled for QR")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(Map.of("message", "Sua conta do Mercado Pago ainda não está habilitada para QR PIX direto via API. Ative uma chave PIX na conta ou use Checkout Pro para PIX."));
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
             log.error("Erro ao processar pagamento PIX", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
