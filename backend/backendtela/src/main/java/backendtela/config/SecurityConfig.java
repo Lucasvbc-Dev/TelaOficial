@@ -35,6 +35,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/usuarios", "/usuarios/login").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/pagamentos/*/status").permitAll()
                     .requestMatchers(HttpMethod.POST,
                         "/pagamentos/checkout-pro",
                         "/pagamentos/pix",

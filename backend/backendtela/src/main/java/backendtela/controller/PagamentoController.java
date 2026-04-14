@@ -5,6 +5,8 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -118,6 +120,21 @@ public class PagamentoController {
         } catch (Exception e) {
             log.error("Erro ao processar webhook", e);
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/{paymentId}/status")
+    public ResponseEntity<?> consultarStatusPagamento(@PathVariable String paymentId) {
+        try {
+            Payment payment = pagamentoService.consultarPagamento(paymentId);
+            return ResponseEntity.ok(Map.of(
+                    "paymentId", paymentId,
+                    "status", payment.getStatus() == null ? "pending" : payment.getStatus()
+            ));
+        } catch (Exception e) {
+            log.error("Erro ao consultar status do pagamento {}", paymentId, e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Não foi possível consultar o status do pagamento"));
         }
     }
 }

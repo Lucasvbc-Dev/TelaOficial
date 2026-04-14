@@ -1,11 +1,15 @@
 package backendtela.dto;
 
+import java.math.BigDecimal;
+
 import backendtela.enums.Metodo;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.math.BigDecimal;
 
 @Data
 @NoArgsConstructor
@@ -16,7 +20,7 @@ public class CriarPagamentoDTO {
     private String pedidoId;
 
     @NotNull(message = "Valor é obrigatório")
-    @DecimalMin(value = "1.00", message = "Valor mínimo para PIX é R$ 1.00")
+    @DecimalMin(value = "0.01", message = "Valor mínimo para PIX é R$ 0.01")
     private BigDecimal valor;
 
     @NotNull(message = "Método de pagamento é obrigatório")

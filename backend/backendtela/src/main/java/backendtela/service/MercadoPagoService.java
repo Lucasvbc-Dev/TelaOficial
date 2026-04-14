@@ -91,6 +91,11 @@ public class MercadoPagoService {
         return client.create(request);
     }
 
+    public Payment buscarPagamento(String paymentId) throws Exception {
+        validarConfiguracao();
+        return client.get(Long.parseLong(paymentId));
+    }
+
     public PreferenciaPagamentoResponseDTO criarPreferenciaCheckoutPro(CriarPreferenciaPagamentoDTO dto) {
         validarConfiguracao();
 

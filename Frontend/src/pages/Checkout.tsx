@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Layout from "@/components/layout/Layout";
 import { useCart } from "@/contexts/CartContext";
@@ -11,6 +11,32 @@ import { pagamentoService } from "@/services/pagamentoService";
 
 type PaymentMethod = "credito" | "debito" | "pix" | null;
 
+type CardFormState = {
+  cardholderName: string;
+  cardNumber: string;
+  expiryMonth: string;
+  expiryYear: string;
+  securityCode: string;
+  cpf: string;
+  installments: number;
+};
+
+const onlyDigits = (value: string) => value.replace(/\D/g, "");
+
+const toMonth = (value: string) => onlyDigits(value).slice(0, 2);
+const toYear = (value: string) => onlyDigits(value).slice(0, 2);
+
+const mapMercadoPagoStatusToLocal = (status?: string): "PAGO" | "PENDENTE" | "CANCELADO" => {
+  const normalized = (status || "").toLowerCase();
+  if (normalized === "approved") {
+    return "PAGO";
+  }
+  if (normalized === "cancelled" || normalized === "rejected" || normalized === "refunded") {
+    return "CANCELADO";
+  }
+  return "PENDENTE";
+};
+
 const Checkout = () => {
   const { items, clearCart } = useCart();
   const { toast } = useToast();
@@ -21,6 +47,17 @@ const Checkout = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pixQrBase64, setPixQrBase64] = useState<string | null>(null);
   const [pixCode, setPixCode] = useState<string | null>(null);
+  const [cardForm, setCardForm] = useState<CardFormState>({
+    cardholderName: "",
+    cardNumber: "",
+    expiryMonth: "",
+    expiryYear: "",
+    securityCode: "",
+    cpf: "",
+    installments: 1,
+  });
+  const [currentPedidoId, setCurrentPedidoId] = useState<string | null>(null);
+  const [pixPaymentId, setPixPaymentId] = useState<string | null>(null);
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const formatPrice = (value: number) =>
@@ -42,13 +79,30 @@ const Checkout = () => {
       return;
     }
 
-    if (paymentMethod === "pix" && totalPrice < 1) {
+    if (paymentMethod === "pix" && totalPrice < 0.01) {
       toast({
         title: "Valor mínimo para PIX",
-        description: "Para pagamento via PIX, o valor do pedido deve ser de pelo menos R$ 1,00.",
+        description: "Para pagamento via PIX, o valor do pedido deve ser de pelo menos R$ 0,01.",
         variant: "destructive",
       });
       return;
+    }
+
+    if (paymentMethod === "credito" || paymentMethod === "debito") {
+      const number = onlyDigits(cardForm.cardNumber);
+      const cvv = onlyDigits(cardForm.securityCode);
+      const cpf = onlyDigits(cardForm.cpf);
+      const month = toMonth(cardForm.expiryMonth);
+      const year = toYear(cardForm.expiryYear);
+
+      if (!cardForm.cardholderName.trim() || number.length < 13 || cvv.length < 3 || cpf.length < 11 || month.length < 2 || year.length < 2) {
+        toast({
+          title: "Dados do cartão incompletos",
+          description: "Preencha nome, número, validade, CVV e CPF para continuar.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     try {
@@ -59,6 +113,7 @@ const Checkout = () => {
         nome: item.name,
         preco: item.price,
         quantidade: item.quantity,
+        tamanhoProduto: item.size,
       }));
 
       const pedido = await supabaseStoreService.criarPedido({
@@ -66,70 +121,74 @@ const Checkout = () => {
         metodoPagamento: paymentMethod,
         itens: itensPayload,
       });
+      setCurrentPedidoId(pedido.id);
 
       if (paymentMethod === "pix") {
-        try {
-          const pixResponse = await pagamentoService.pagarComPix({
-            pedidoId: pedido.id,
-            valor: Number(totalPrice.toFixed(2)),
-            metodo: "PIX",
-            email: usuario.email,
-          });
+        const pixResponse = await pagamentoService.pagarComPix({
+          pedidoId: pedido.id,
+          valor: Number(totalPrice.toFixed(2)),
+          metodo: "PIX",
+          email: usuario.email,
+        });
 
-          const txData = pixResponse.point_of_interaction?.transaction_data;
-          if (!txData?.qr_code && !txData?.qr_code_base64) {
-            throw new Error("PIX criado sem QR Code. Tente novamente em instantes.");
-          }
-
-          setPixQrBase64(txData.qr_code_base64 || null);
-          setPixCode(txData.qr_code || null);
-          clearCart();
-          return;
-        } catch (pixError: any) {
-          toast({
-            title: "PIX direto indisponível",
-            description: "Redirecionando para o Checkout Pro com PIX.",
-          });
-
-          try {
-            const checkoutResponse = await pagamentoService.criarCheckoutPro({
-              pedidoId: pedido.id,
-              email: usuario.email,
-              metodoPagamento: "pix",
-              itens: itensPayload,
-              backUrl: window.location.origin,
-            });
-
-            clearCart();
-
-            if (checkoutResponse?.initPoint) {
-              window.location.href = checkoutResponse.initPoint;
-              return;
-            }
-
-            throw new Error("Falha ao iniciar Checkout Pro para PIX.");
-          } catch {
-            throw pixError;
-          }
+        const txData = pixResponse.point_of_interaction?.transaction_data;
+        if (!txData?.qr_code && !txData?.qr_code_base64) {
+          throw new Error("PIX criado sem QR Code. Tente novamente em instantes.");
         }
-      }
 
-      const checkoutResponse = await pagamentoService.criarCheckoutPro({
-        pedidoId: pedido.id,
-        email: usuario.email,
-        metodoPagamento: paymentMethod,
-        itens: itensPayload,
-        backUrl: window.location.origin,
-      });
+        const pixStatusLocal = mapMercadoPagoStatusToLocal(pixResponse.status);
+        await supabaseStoreService.atualizarStatusPedidoEPagamento({
+          pedidoId: pedido.id,
+          status: pixStatusLocal,
+          transactionId: String(pixResponse.id),
+        });
 
-      clearCart();
+        setPixQrBase64(txData.qr_code_base64 || null);
+        setPixCode(txData.qr_code || null);
+        setPixPaymentId(String(pixResponse.id));
+        clearCart();
 
-      if (checkoutResponse?.initPoint) {
-        window.location.href = checkoutResponse.initPoint;
+        if (pixStatusLocal === "PAGO") {
+          setOrderPlaced(true);
+        }
         return;
       }
 
-      setOrderPlaced(true);
+      const cardToken = await pagamentoService.criarTokenCartao({
+        cardholderName: cardForm.cardholderName.trim(),
+        cardNumber: onlyDigits(cardForm.cardNumber),
+        cardExpirationMonth: toMonth(cardForm.expiryMonth),
+        cardExpirationYear: toYear(cardForm.expiryYear),
+        securityCode: onlyDigits(cardForm.securityCode),
+        identificationType: "CPF",
+        identificationNumber: onlyDigits(cardForm.cpf),
+      });
+
+      const cardPayment = await pagamentoService.pagarComCartao({
+        pedidoId: pedido.id,
+        valor: Number(totalPrice.toFixed(2)),
+        email: usuario.email,
+        token: cardToken,
+        installments: paymentMethod === "debito" ? 1 : cardForm.installments,
+      });
+
+      const cardStatusLocal = mapMercadoPagoStatusToLocal(cardPayment.status);
+      await supabaseStoreService.atualizarStatusPedidoEPagamento({
+        pedidoId: pedido.id,
+        status: cardStatusLocal,
+        transactionId: String(cardPayment.id),
+      });
+
+      clearCart();
+      setOrderPlaced(cardStatusLocal === "PAGO");
+
+      if (cardStatusLocal !== "PAGO") {
+        toast({
+          title: "Pagamento em análise",
+          description: "Seu pedido foi criado e o pagamento está pendente. Você pode acompanhar em Meus Pedidos.",
+        });
+        navigate("/meus-pedidos");
+      }
     } catch (error: any) {
       const errorMsg = error?.message || "Erro desconhecido";
 
@@ -144,6 +203,40 @@ const Checkout = () => {
       setIsSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (!pixPaymentId || !currentPedidoId || orderPlaced) {
+      return;
+    }
+
+    const timer = window.setInterval(async () => {
+      try {
+        const response = await pagamentoService.consultarStatusPagamento(pixPaymentId);
+        const statusLocal = mapMercadoPagoStatusToLocal(response.status);
+
+        await supabaseStoreService.atualizarStatusPedidoEPagamento({
+          pedidoId: currentPedidoId,
+          status: statusLocal,
+          transactionId: pixPaymentId,
+        });
+
+        if (statusLocal === "PAGO") {
+          setOrderPlaced(true);
+          setPixCode(null);
+          setPixQrBase64(null);
+          window.clearInterval(timer);
+        }
+
+        if (statusLocal === "CANCELADO") {
+          window.clearInterval(timer);
+        }
+      } catch {
+        // Mantém polling silencioso para tentar novamente.
+      }
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [pixPaymentId, currentPedidoId, orderPlaced]);
 
   const handleCopiarPix = async () => {
     if (!pixCode) {
@@ -174,7 +267,7 @@ const Checkout = () => {
             <CheckCircle size={64} className="mx-auto mb-6 text-foreground" />
             <h1 className="font-display text-4xl tracking-wide text-foreground mb-4">Pedido Confirmado</h1>
             <p className="font-body text-muted-foreground mb-8">
-              Seu pedido foi realizado com sucesso! Você receberá um e-mail com os detalhes.
+              Seu pedido foi realizado e o pagamento foi processado no próprio site com sucesso.
             </p>
             <a
               href="/"
@@ -199,7 +292,7 @@ const Checkout = () => {
           >
             <h1 className="font-display text-4xl tracking-wide text-foreground mb-4">Pagamento PIX</h1>
             <p className="font-body text-muted-foreground mb-8">
-              Escaneie o QR Code no app do banco para concluir o pagamento.
+              Escaneie o QR Code no app do banco para concluir o pagamento. Após aprovação, seu pedido será atualizado automaticamente.
             </p>
 
             {pixQrBase64 && (
@@ -279,6 +372,7 @@ const Checkout = () => {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-display text-base text-foreground">{item.name}</h3>
+                      <p className="font-body text-xs text-muted-foreground">Tamanho: {item.size}</p>
                       <p className="font-body text-sm text-muted-foreground">Qtd: {item.quantity}</p>
                     </div>
                     <p className="font-body text-sm text-foreground self-center">{formatPrice(item.price)}</p>
@@ -300,7 +394,7 @@ const Checkout = () => {
                 {[
                   { id: "credito" as const, label: "Cartão de Crédito", icon: CreditCard, desc: "Até 12x sem juros" },
                   { id: "debito" as const, label: "Cartão de Débito", icon: CreditCard, desc: "Pagamento à vista" },
-                  { id: "pix" as const, label: "PIX", icon: QrCode, desc: "Pagamento via Mercado Pago" },
+                  { id: "pix" as const, label: "PIX", icon: QrCode, desc: "QR Code gerado no próprio site" },
                 ].map((method) => (
                   <motion.button
                     key={method.id}
@@ -322,6 +416,89 @@ const Checkout = () => {
                 ))}
               </div>
 
+              {(paymentMethod === "credito" || paymentMethod === "debito") && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-6 space-y-3"
+                >
+                  <input
+                    value={cardForm.cardholderName}
+                    onChange={(event) => setCardForm((prev) => ({ ...prev, cardholderName: event.target.value }))}
+                    placeholder="Nome impresso no cartão"
+                    className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
+                  />
+                  <input
+                    value={cardForm.cardNumber}
+                    onChange={(event) =>
+                      setCardForm((prev) => ({
+                        ...prev,
+                        cardNumber: onlyDigits(event.target.value).slice(0, 16),
+                      }))
+                    }
+                    placeholder="Número do cartão"
+                    inputMode="numeric"
+                    className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
+                  />
+                  <div className="grid grid-cols-3 gap-3">
+                    <input
+                      value={cardForm.expiryMonth}
+                      onChange={(event) => setCardForm((prev) => ({ ...prev, expiryMonth: toMonth(event.target.value) }))}
+                      placeholder="MM"
+                      inputMode="numeric"
+                      className="h-11 px-3 border border-border bg-background font-body text-sm"
+                    />
+                    <input
+                      value={cardForm.expiryYear}
+                      onChange={(event) => setCardForm((prev) => ({ ...prev, expiryYear: toYear(event.target.value) }))}
+                      placeholder="AA"
+                      inputMode="numeric"
+                      className="h-11 px-3 border border-border bg-background font-body text-sm"
+                    />
+                    <input
+                      value={cardForm.securityCode}
+                      onChange={(event) =>
+                        setCardForm((prev) => ({
+                          ...prev,
+                          securityCode: onlyDigits(event.target.value).slice(0, 4),
+                        }))
+                      }
+                      placeholder="CVV"
+                      inputMode="numeric"
+                      className="h-11 px-3 border border-border bg-background font-body text-sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      value={cardForm.cpf}
+                      onChange={(event) =>
+                        setCardForm((prev) => ({
+                          ...prev,
+                          cpf: onlyDigits(event.target.value).slice(0, 11),
+                        }))
+                      }
+                      placeholder="CPF do titular"
+                      inputMode="numeric"
+                      className="h-11 px-3 border border-border bg-background font-body text-sm"
+                    />
+                    <select
+                      value={cardForm.installments}
+                      onChange={(event) =>
+                        setCardForm((prev) => ({ ...prev, installments: Number(event.target.value) }))
+                      }
+                      disabled={paymentMethod === "debito"}
+                      className="h-11 px-3 border border-border bg-background font-body text-sm"
+                    >
+                      {Array.from({ length: 12 }, (_, index) => index + 1).map((parcelas) => (
+                        <option key={parcelas} value={parcelas}>
+                          {parcelas}x
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </motion.div>
+              )}
+
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -330,7 +507,7 @@ const Checkout = () => {
                 <div className="flex items-start gap-3">
                   <QrCode size={20} className="mt-0.5 text-foreground shrink-0" />
                   <p className="font-body text-sm text-muted-foreground leading-relaxed">
-                    Ao confirmar, você será redirecionado para o Mercado Pago para concluir o pagamento.
+                    O pagamento é concluído aqui no site. Para PIX, o QR Code é gerado imediatamente após confirmar.
                   </p>
                 </div>
               </motion.div>
@@ -345,9 +522,9 @@ const Checkout = () => {
                 {isSubmitting
                   ? "Processando..."
                   : paymentMethod === "pix"
-                    ? "Ir para PIX no Mercado Pago"
+                    ? "Gerar QR Code PIX"
                     : paymentMethod
-                      ? "Ir para cartão no Mercado Pago"
+                      ? "Pagar no site"
                       : "Confirmar Pedido"}
               </motion.button>
             </motion.div>

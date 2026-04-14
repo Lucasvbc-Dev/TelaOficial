@@ -1,5 +1,12 @@
 package backendtela.service;
 
+import java.util.Locale;
+import java.util.UUID;
+
+import org.springframework.stereotype.Service;
+
+import com.mercadopago.resources.payment.Payment;
+
 import backendtela.dto.CriarPagamentoDTO;
 import backendtela.dto.CriarPreferenciaPagamentoDTO;
 import backendtela.dto.PagamentoCartaoDTO;
@@ -8,12 +15,7 @@ import backendtela.entidades.Pagamentos;
 import backendtela.enums.Metodo;
 import backendtela.enums.Status;
 import backendtela.repository.PagamentoRepository;
-import com.mercadopago.resources.payment.Payment;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
-import java.util.Locale;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -49,6 +51,10 @@ public class PagamentoService {
         Payment payment = mercadoPagoService.criarPagamentoCartao(dto);
         salvarRegistroPagamento(dto.getPedidoId(), dto.getValor(), Metodo.CARTAO_DE_CREDITO, payment);
         return payment;
+    }
+
+    public Payment consultarPagamento(String paymentId) throws Exception {
+        return mercadoPagoService.buscarPagamento(paymentId);
     }
 
     /**

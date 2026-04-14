@@ -48,7 +48,7 @@ const CartDrawer = () => {
                 <div className="space-y-6">
                   {items.map((item) => (
                     <motion.div
-                      key={item.id}
+                      key={`${item.id}-${item.size}`}
                       layout
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -60,17 +60,18 @@ const CartDrawer = () => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-display text-base tracking-wide text-foreground truncate">{item.name}</h3>
+                        <p className="font-body text-xs text-muted-foreground mt-1">Tamanho: {item.size}</p>
                         <p className="font-body text-sm text-foreground mt-1">{formatPrice(item.price)}</p>
                         <div className="flex items-center gap-3 mt-2">
                           <button
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            onClick={() => updateQuantity(item.id, item.size, item.quantity - 1)}
                             className="w-7 h-7 flex items-center justify-center border border-border text-foreground/60 hover:text-foreground transition-colors"
                           >
                             <Minus size={12} />
                           </button>
                           <span className="font-body text-sm w-4 text-center">{item.quantity}</span>
                           <button
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            onClick={() => updateQuantity(item.id, item.size, item.quantity + 1)}
                             className="w-7 h-7 flex items-center justify-center border border-border text-foreground/60 hover:text-foreground transition-colors"
                           >
                             <Plus size={12} />
@@ -78,7 +79,7 @@ const CartDrawer = () => {
                         </div>
                       </div>
                       <button
-                        onClick={() => removeItem(item.id)}
+                        onClick={() => removeItem(item.id, item.size)}
                         className="text-muted-foreground hover:text-foreground transition-colors self-start"
                       >
                         <X size={16} />

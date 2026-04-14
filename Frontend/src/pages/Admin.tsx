@@ -23,6 +23,7 @@ type ItemPedido = {
   nome: string;
   preco: number;
   quantidade: number;
+  imagemUrl?: string;
 };
 
 type Pedido = {
@@ -173,11 +174,30 @@ const Admin = () => {
 
                         {/* 🔹 ALTERADO: render correto dos itens */}
                         <TableCell>
-                          {pedido.itens.map((item, index) => (
-                            <div key={index} className="text-sm">
-                              {item.quantidade}x {item.nome}
-                            </div>
-                          ))}
+                          <div className="space-y-3">
+                            {pedido.itens.map((item, index) => (
+                              <div key={index} className="flex items-center gap-3 text-sm">
+                                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border bg-secondary">
+                                  {item.imagemUrl ? (
+                                    <img
+                                      src={item.imagemUrl}
+                                      alt={item.nome}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="h-full w-full flex items-center justify-center text-[10px] uppercase text-muted-foreground">
+                                      Sem foto
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-medium truncate">
+                                    {item.quantidade}x {item.nome}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </TableCell>
 
                         <TableCell>

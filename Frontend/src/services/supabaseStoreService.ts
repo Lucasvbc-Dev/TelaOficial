@@ -7,6 +7,7 @@ export type Produto = {
   preco: number;
   categoria: string;
   imagemUrl: string;
+  imagensUrls: string[];
   ativo: boolean;
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -17,6 +18,7 @@ export type CartItemPayload = {
   nome: string;
   preco: number;
   quantidade: number;
+  tamanhoProduto: "P" | "M" | "G";
 };
 
 export type UsuarioPerfil = {
@@ -28,21 +30,22 @@ export type UsuarioPerfil = {
   isAdm: boolean;
 };
 
-const mapProduto = (row: any, imagemUrl: string): Produto => ({
+const mapProduto = (row: any, imagensUrls: string[]): Produto => ({
   id: String(row.id_produto ?? row.id),
   nome: row.nome,
   descricao: row.descricao,
   preco: Number(row.preco || 0),
   categoria: row.categoria,
-  imagemUrl,
+  imagemUrl: imagensUrls[0] || "",
+  imagensUrls,
   ativo: Boolean(row.ativo),
   createdAt: row.created_at || row.createdAt || null,
   updatedAt: row.updated_at || row.updatedAt || null,
 });
 
-const loadImagemPrincipalMap = async (produtoIds: string[]) => {
+const loadImagensMap = async (produtoIds: string[]) => {
   if (!produtoIds.length) {
-    return new Map<string, string>();
+    return new Map<string, string[]>();
   }
 
   const { data, error } = await supabase
@@ -52,10 +55,15 @@ const loadImagemPrincipalMap = async (produtoIds: string[]) => {
 
   assertNoError(error, "Erro ao carregar imagens dos produtos");
 
-  const imagemMap = new Map<string, string>();
+  const imagemMap = new Map<string, string[]>();
   for (const imagem of data || []) {
-    if (!imagemMap.has(imagem.produto_id)) {
-      imagemMap.set(imagem.produto_id, imagem.url || "");
+    const key = String(imagem.produto_id);
+    if (!imagemMap.has(key)) {
+      imagemMap.set(key, []);
+    }
+
+    if (imagem.url) {
+      imagemMap.get(key)?.push(String(imagem.url));
     }
   }
 
@@ -104,11 +112,11 @@ export const supabaseStoreService = {
     const totalPages = Math.max(1, Math.ceil(totalElements / size));
 
     const produtoIds = (data || []).map((produto: any) => String(produto.id_produto));
-    const imagemMap = await loadImagemPrincipalMap(produtoIds);
+    const imagemMap = await loadImagensMap(produtoIds);
 
     return {
       content: (data || []).map((produto: any) =>
-        mapProduto(produto, imagemMap.get(String(produto.id_produto)) || ""),
+        mapProduto(produto, imagemMap.get(String(produto.id_produto)) || []),
       ),
       currentPage: page,
       totalPages,
@@ -128,10 +136,10 @@ export const supabaseStoreService = {
     assertNoError(error, "Erro ao listar destaques");
 
     const produtoIds = (data || []).map((produto: any) => String(produto.id_produto));
-    const imagemMap = await loadImagemPrincipalMap(produtoIds);
+    const imagemMap = await loadImagensMap(produtoIds);
 
     return (data || []).map((produto: any) =>
-      mapProduto(produto, imagemMap.get(String(produto.id_produto)) || ""),
+      mapProduto(produto, imagemMap.get(String(produto.id_produto)) || []),
     );
   },
 
@@ -145,8 +153,8 @@ export const supabaseStoreService = {
     assertNoError(error, "Produto não encontrado");
 
     const produtoId = String(data.id_produto);
-    const imagemMap = await loadImagemPrincipalMap([produtoId]);
-    return mapProduto(data, imagemMap.get(produtoId) || "");
+    const imagemMap = await loadImagensMap([produtoId]);
+    return mapProduto(data, imagemMap.get(produtoId) || []);
   },
 
   async criarPedido(payload: {
@@ -177,6 +185,7 @@ export const supabaseStoreService = {
       nome: item.nome,
       preco: Number(item.preco),
       quantidade: Number(item.quantidade),
+      tamanho_produtos: item.tamanhoProduto,
     }));
 
     const { error: itensError } = await supabase.from("pedido_itens").insert(itensRows);
@@ -279,6 +288,8 @@ export const supabaseStoreService = {
     assertNoError(itensError, "Erro ao listar itens");
 
     const usuarioMap = new Map((usuarios || []).map((usuario) => [usuario.id, usuario]));
+    const produtoIds = [...new Set((itens || []).map((item) => String(item.produto_id)).filter(Boolean))];
+    const imagemMap = await loadImagensMap(produtoIds);
     const itensPorPedido = (itens || []).reduce((acc: Record<string, any[]>, item) => {
       if (!acc[item.pedido_id]) {
         acc[item.pedido_id] = [];
@@ -299,6 +310,7 @@ export const supabaseStoreService = {
           nome: item.nome,
           preco: Number(item.preco || 0),
           quantidade: Number(item.quantidade || 0),
+          imagemUrl: imagemMap.get(String(item.produto_id))?.[0] || "",
         })),
         total: Number(pedido.total || 0),
         status: pedido.status,
@@ -373,5 +385,33 @@ export const supabaseStoreService = {
   ) {
     const { error } = await supabase.from("usuarios").update(payload).eq("id", id);
     assertNoError(error, "Erro ao atualizar perfil");
+  },
+
+  async atualizarStatusPedidoEPagamento(payload: {
+    pedidoId: string;
+    status: "PAGO" | "PENDENTE" | "CANCELADO";
+    transactionId?: string;
+  }) {
+    const { error: pedidoError } = await supabase
+      .from("pedidos")
+      .update({ status: payload.status })
+      .eq("id", payload.pedidoId);
+
+    assertNoError(pedidoError, "Erro ao atualizar status do pedido");
+
+    const pagamentoUpdate: Record<string, any> = {
+      status: payload.status,
+    };
+
+    if (payload.transactionId) {
+      pagamentoUpdate.transaction_id = payload.transactionId;
+    }
+
+    const { error: pagamentoError } = await supabase
+      .from("pagamentos")
+      .update(pagamentoUpdate)
+      .eq("pedido_id", payload.pedidoId);
+
+    assertNoError(pagamentoError, "Erro ao atualizar status do pagamento");
   },
 };
