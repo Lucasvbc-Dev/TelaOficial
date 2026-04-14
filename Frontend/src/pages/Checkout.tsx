@@ -58,8 +58,14 @@ const Checkout = () => {
   });
   const [currentPedidoId, setCurrentPedidoId] = useState<string | null>(null);
   const [pixPaymentId, setPixPaymentId] = useState<string | null>(null);
+  const [endereco, setEndereco] = useState("");
+  const [cep, setCep] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [estado, setEstado] = useState("");
+  const [frete, setFrete] = useState(0);
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const totalComFrete = totalPrice + frete;
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 
@@ -79,7 +85,16 @@ const Checkout = () => {
       return;
     }
 
-    if (paymentMethod === "pix" && totalPrice < 0.01) {
+    if (!endereco.trim() || !cep.trim() || !cidade.trim() || !estado.trim()) {
+      toast({
+        title: "Endereço incompleto",
+        description: "Preencha endereço, CEP, cidade e estado para continuar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (paymentMethod === "pix" && totalComFrete < 0.01) {
       toast({
         title: "Valor mínimo para PIX",
         description: "Para pagamento via PIX, o valor do pedido deve ser de pelo menos R$ 0,01.",
@@ -120,13 +135,18 @@ const Checkout = () => {
         usuarioId: usuario.id,
         metodoPagamento: paymentMethod,
         itens: itensPayload,
+        endereco,
+        cep,
+        cidade,
+        estado,
+        frete,
       });
       setCurrentPedidoId(pedido.id);
 
       if (paymentMethod === "pix") {
         const pixResponse = await pagamentoService.pagarComPix({
           pedidoId: pedido.id,
-          valor: Number(totalPrice.toFixed(2)),
+          valor: Number(totalComFrete.toFixed(2)),
           metodo: "PIX",
           email: usuario.email,
         });
@@ -166,7 +186,7 @@ const Checkout = () => {
 
       const cardPayment = await pagamentoService.pagarComCartao({
         pedidoId: pedido.id,
-        valor: Number(totalPrice.toFixed(2)),
+        valor: Number(totalComFrete.toFixed(2)),
         email: usuario.email,
         token: cardToken,
         installments: paymentMethod === "debito" ? 1 : cardForm.installments,
@@ -380,13 +400,87 @@ const Checkout = () => {
                 ))}
               </div>
               <div className="mt-6 pt-4 border-t border-border flex justify-between items-center">
+                <span className="font-body text-sm tracking-wider uppercase text-muted-foreground">Subtotal</span>
+                <span className="font-display text-2xl text-foreground">{formatPrice(totalPrice)}</span>
+              </div>
+              <div className="mt-2 flex justify-between items-center">
+                <span className="font-body text-sm tracking-wider uppercase text-muted-foreground">Frete</span>
+                <span className="font-display text-2xl text-foreground">{formatPrice(frete)}</span>
+              </div>
+              <div className="mt-4 pt-4 border-t border-border flex justify-between items-center">
                 <span className="font-body text-sm tracking-wider uppercase text-muted-foreground">Total</span>
-                <span className="font-display text-3xl text-foreground">{formatPrice(totalPrice)}</span>
+                <span className="font-display text-3xl text-foreground">{formatPrice(totalComFrete)}</span>
               </div>
             </motion.div>
 
-            {/* Payment */}
+            {/* Delivery & Payment */}
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
+              <h2 className="font-display text-2xl tracking-wide text-foreground mb-6 pb-4 border-b border-border">
+                Endereço de Entrega
+              </h2>
+              <div className="space-y-3 mb-8">
+                <input
+                  value={endereco}
+                  onChange={(e) => setEndereco(e.target.value)}
+                  placeholder="Rua, número e complemento"
+                  className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
+                />
+                <input
+                  value={cep}
+                  onChange={(e) => setCep(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  placeholder="CEP (00000-000)"
+                  className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    value={cidade}
+                    onChange={(e) => setCidade(e.target.value)}
+                    placeholder="Cidade"
+                    className="h-11 px-3 border border-border bg-background font-body text-sm"
+                  />
+                  <select
+                    value={estado}
+                    onChange={(e) => setEstado(e.target.value)}
+                    className="h-11 px-3 border border-border bg-background font-body text-sm"
+                  >
+                    <option value="">UF</option>
+                    <option value="SP">SP</option>
+                    <option value="RJ">RJ</option>
+                    <option value="MG">MG</option>
+                    <option value="RS">RS</option>
+                    <option value="BA">BA</option>
+                    <option value="SC">SC</option>
+                    <option value="PR">PR</option>
+                    <option value="PE">PE</option>
+                    <option value="CE">CE</option>
+                    <option value="PA">PA</option>
+                    <option value="GO">GO</option>
+                    <option value="PB">PB</option>
+                    <option value="MA">MA</option>
+                    <option value="ES">ES</option>
+                    <option value="PI">PI</option>
+                    <option value="RN">RN</option>
+                    <option value="AL">AL</option>
+                    <option value="MT">MT</option>
+                    <option value="MS">MS</option>
+                    <option value="DF">DF</option>
+                    <option value="AC">AC</option>
+                    <option value="AM">AM</option>
+                    <option value="AP">AP</option>
+                    <option value="RO">RO</option>
+                    <option value="RR">RR</option>
+                    <option value="TO">TO</option>
+                  </select>
+                </div>
+                <input
+                  value={frete}
+                  onChange={(e) => setFrete(Number(e.target.value) || 0)}
+                  placeholder="Frete (R$)"
+                  inputMode="decimal"
+                  className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
+                />
+              </div>
+
               <h2 className="font-display text-2xl tracking-wide text-foreground mb-6 pb-4 border-b border-border">
                 Forma de Pagamento
               </h2>

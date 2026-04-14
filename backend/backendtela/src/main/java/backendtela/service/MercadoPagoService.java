@@ -88,7 +88,14 @@ public class MercadoPagoService {
                 .metadata(metadata)
                 .build();
 
-        return client.create(request);
+        try {
+            return client.create(request);
+        } catch (MPApiException e) {
+            String detalhe = e.getApiResponse() != null
+                    ? "HTTP " + e.getApiResponse().getStatusCode() + " - " + e.getApiResponse().getContent()
+                    : e.getMessage();
+            throw new IllegalStateException("Mercado Pago rejeitou cartão: " + detalhe, e);
+        }
     }
 
     public Payment buscarPagamento(String paymentId) throws Exception {

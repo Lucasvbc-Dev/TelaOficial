@@ -117,6 +117,9 @@ public class PagamentoController {
             log.info("Webhook recebido do MercadoPago");
             pagamentoService.processarWebhook(payload, signature);
             return ResponseEntity.ok().build();
+        } catch (IllegalStateException e) {
+            log.warn("Webhook rejeitado: assinatura inválida");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (Exception e) {
             log.error("Erro ao processar webhook", e);
             return ResponseEntity.badRequest().build();

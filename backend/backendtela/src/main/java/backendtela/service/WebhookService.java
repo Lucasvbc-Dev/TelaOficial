@@ -7,8 +7,11 @@ import backendtela.repository.PedidoRepository;
 import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.resources.payment.Payment;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -25,6 +28,9 @@ public class WebhookService {
 
     private final PagamentoRepository pagamentoRepository;
     private final PedidoRepository pedidoRepository;
+    
+    @Value("${mercadopago.webhook-secret:webhook-secret-test-local}")
+    private String webhookSecret;
 
     public WebhookService(PagamentoRepository pagamentoRepository, PedidoRepository pedidoRepository) {
         this.pagamentoRepository = pagamentoRepository;
@@ -41,9 +47,50 @@ public class WebhookService {
         processarPagamento(paymentId, null);
     }
 
-    public void processarWebhook(String payload, String signature) {
+    public void processarWebhook(String payload, String signature) throws IllegalStateException {
+        // Validar assinatura HMAC SHA256
+        if (webhookSecret != null && !webhookSecret.isBlank() && signature != null && !signature.isBlank()) {
+            if (!validarAssinatura(payload, signature)) {
+                log.warn("⚠️  Webhook recebido com assinatura INVÁLIDA. Rejeitado.");
+                throw new IllegalStateException("Assinatura do webhook inválida");
+            }
+        } else {
+            log.debug("Webhook sem validação de assinatura (webhook-secret não configurado)");
+        }
+        
         String paymentId = extrairPaymentId(payload);
         processarPagamento(paymentId, signature);
+    }
+    
+    private boolean validarAssinatura(String payload, String signature) {
+        try {
+            String hash = gerarHMACSHA256(payload, webhookSecret);
+            // MP envia hash no formato timestamp-hash
+            String[] parts = signature.split("-");
+            if (parts.length == 2) {
+                return hash.equals(parts[1]);
+            }
+            return false;
+        } catch (Exception e) {
+            log.error("Erro ao validar assinatura do webhook", e);
+            return false;
+        }
+    }
+    
+    private String gerarHMACSHA256(String data, String secret) throws Exception {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        SecretKeySpec keySpec = new SecretKeySpec(secret.getBytes(), "HmacSHA256");
+        mac.init(keySpec);
+        byte[] rawHmac = mac.doFinal(data.getBytes());
+        return bytesToHex(rawHmac);
+    }
+    
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 
     private void processarPagamento(String paymentId, String signature) {

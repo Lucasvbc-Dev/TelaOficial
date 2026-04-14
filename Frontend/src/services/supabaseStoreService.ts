@@ -161,6 +161,11 @@ export const supabaseStoreService = {
     usuarioId: string;
     itens: CartItemPayload[];
     metodoPagamento: "credito" | "debito" | "pix";
+    endereco?: string;
+    cep?: string;
+    cidade?: string;
+    estado?: string;
+    frete?: number;
   }) {
     const pedidoId = crypto.randomUUID();
     const pagamentoId = crypto.randomUUID();
@@ -168,12 +173,18 @@ export const supabaseStoreService = {
       (acc, item) => acc + Number(item.preco) * Number(item.quantidade),
       0,
     );
+    const totalComFrete = total + (payload.frete || 0);
 
     const { error: pedidoError } = await supabase.from("pedidos").insert({
       id: pedidoId,
       usuario_id: payload.usuarioId,
-      total,
+      total: totalComFrete,
       status: "PENDENTE",
+      endereco: payload.endereco || "",
+      cep: payload.cep || "",
+      cidade: payload.cidade || "",
+      estado: payload.estado || "",
+      frete: payload.frete || 0,
       created_at: new Date().toISOString(),
     });
 
@@ -207,14 +218,14 @@ export const supabaseStoreService = {
       transaction_id: null,
       metodo,
       status: "PENDENTE",
-      valor: total,
+      valor: totalComFrete,
     });
 
     if (pagamentoError) {
       throw new Error(pagamentoError.message || "Erro ao criar pagamento");
     }
 
-    return { id: pedidoId, total, status: "PENDENTE" };
+    return { id: pedidoId, total: totalComFrete, status: "PENDENTE" };
   },
 
   async listarPedidosUsuario(usuarioId: string) {
